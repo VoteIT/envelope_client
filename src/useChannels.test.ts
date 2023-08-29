@@ -1,7 +1,7 @@
 import { test } from '@jest/globals'
 
 import useChannels, { Subscription, count } from './useChannels'
-import { sleep } from './test'
+import { sleep } from './Socket.test'
 
 test('count', () => {
   const ids = count()
