@@ -2,6 +2,7 @@ import { test } from '@jest/globals'
 
 import useChannels, { Subscription, count } from './useChannels'
 import { sleep } from './Socket.test'
+import { SocketEventHandler } from 'types'
 
 test('count', () => {
   const ids = count()
@@ -28,12 +29,13 @@ test('Subscription objects', () => {
 })
 
 test('useChannels subscription commands', async () => {
-  // @ts-ignore
   const mockSocket: Parameters<typeof useChannels>[0] = {
+    isOpen: true,
     messageID: 1,
     // @ts-ignore
     call: jest.fn(() => Promise.resolve()),
-    send: jest.fn()
+    send: jest.fn(),
+    on: jest.fn()
   }
 
   const { subscribe } = useChannels(mockSocket)
@@ -59,6 +61,36 @@ test('useChannels subscription commands', async () => {
   await sleep(10)
   expect(mockSocket.send).toBeCalledWith(
     'channel.leave',
+    {
+      channel_type: 'test',
+      pk: 42
+    }
+  )
+})
+
+test('useChannels deferred subscriptions', async () => {
+  const mockSocket = {
+    isOpen: false,
+    messageID: 1,
+    // @ts-ignore
+    call: jest.fn(() => Promise.resolve()),
+    send: jest.fn(),
+    on: jest.fn()
+  }
+
+  // @ts-ignore
+  const { subscribe } = useChannels(mockSocket)
+  const readyHandler: SocketEventHandler = mockSocket.on.mock.calls[0][1]
+  await subscribe('test', 42).promise
+  expect(mockSocket.call).not.toBeCalled()
+
+  // Open up the mock socket.
+  mockSocket.isOpen = true
+  readyHandler({ readyState: WebSocket.OPEN })
+  await sleep()
+
+  expect(mockSocket.call).toBeCalledWith(
+    'channel.subscribe',
     {
       channel_type: 'test',
       pk: 42

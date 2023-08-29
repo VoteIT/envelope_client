@@ -104,7 +104,7 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
       )
     }
 
-    const promise = subscription.shouldSubscribe
+    const promise = subscription.shouldSubscribe && socket.isOpen
       ? performSubscribe(subscription)
       : Promise.resolve()
     return {
@@ -116,6 +116,20 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
   function onLeave (handler: ChannelLeaveHandler) {
     leaveHandlers.push(handler)
   }
+
+  socket.on('readyState', ({ readyState }) => {
+    if (readyState === WebSocket.OPEN) {
+      // When connected, subscribe to all channels that should be
+      for (const { channel, shouldSubscribe } of subscriptions.values()) {
+        if (shouldSubscribe) subscribe(channel.channel_type, channel.pk)
+      }
+    } else {
+      // Any other state switch means we're no longer subscribed to any channel
+      for (const subscription of subscriptions.values()) {
+        subscription.status = SubscriptionStatus.None
+      }
+    }
+  })
 
   return {
     onLeave,
