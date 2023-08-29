@@ -103,3 +103,8 @@ export interface SocketOptions {
 export interface SubscriptionOptions {
   leaveDelay?: number
 }
+
+export interface EnvelopeChannel {
+  channel_type: string
+  pk: number
+}

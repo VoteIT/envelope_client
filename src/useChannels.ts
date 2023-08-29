@@ -1,10 +1,5 @@
 import type Socket from "./Socket"
-import { SubscriptionOptions } from "./types"
-
-interface Channel {
-  channel_type: string
-  pk: number
-}
+import { EnvelopeChannel, SubscriptionOptions } from "./types"
 
 type ChannelLeaveHandler = (channelType: string, pk: number) => void
 
@@ -29,11 +24,11 @@ export function * count (): Generator<number, number> {
  * Describes individual subscription paths
  */
 export class Subscription extends Set<number> {
-  public readonly channel: Channel
+  public readonly channel: EnvelopeChannel
   public leaveTimeout?: NodeJS.Timeout
   public status: typeof SubscriptionStatus[keyof typeof SubscriptionStatus]
 
-  constructor (channel: Channel) {
+  constructor (channel: EnvelopeChannel) {
     super()
     this.channel = channel
     this.status = SubscriptionStatus.None
@@ -60,7 +55,7 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
   const subscriptions = new Map<string, Subscription>()
   const subscriptionIds = count()
 
-  function getSubscription (channel: Channel) {
+  function getSubscription (channel: EnvelopeChannel) {
     const path = `${channel.channel_type}/${channel.pk}`
     if (!subscriptions.has(path)) {
       subscriptions.set(
