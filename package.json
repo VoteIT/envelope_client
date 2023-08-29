@@ -32,7 +32,7 @@
     "typescript": "^5.2.2"
   },
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./index.ts",
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   }
