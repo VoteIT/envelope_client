@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals'
 import WS from "jest-websocket-mock"
 
-import Socket from '.'
+import Socket from './Socket'
 import { SocketOptions } from './types'
 
 /* Tests using  https://www.npmjs.com/package/jest-websocket-mock */

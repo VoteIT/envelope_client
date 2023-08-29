@@ -1,4 +1,4 @@
-import type Socket from "."
+import type Socket from "./Socket"
 import { SubscriptionOptions } from "./types"
 
 interface Channel {

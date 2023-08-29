@@ -3,7 +3,7 @@ import { Progress, ProgressHandler } from './types'
 const PROGRESS_INITIAL: Progress = {
   curr: 0,
   total: 1
-}
+} as const
 
 export default class ProgressPromise<T, PT extends Progress=Progress> extends Promise<T> {
   _progress: Progress
