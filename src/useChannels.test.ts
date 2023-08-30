@@ -28,17 +28,30 @@ test('Subscription objects', () => {
   expect(subscription.shouldLeave).toBe(true)
 })
 
-test('useChannels subscription commands', async () => {
-  const mockSocket: Parameters<typeof useChannels>[0] = {
-    isOpen: true,
+function useMockedChannels (isOpen: boolean) {
+  const mockSocket = {
+    isOpen,
     messageID: 1,
     // @ts-ignore
     call: jest.fn(() => Promise.resolve()),
     send: jest.fn(),
     on: jest.fn()
   }
+  const subscribedCallback = jest.fn()
 
-  const { subscribe } = useChannels(mockSocket)
+  // @ts-ignore
+  const { onSubscriptionChanged, subscribe } = useChannels(mockSocket)
+  onSubscriptionChanged(subscribedCallback)
+  return {
+    mockSocket,
+    subscribedCallback,
+    subscribe
+  }
+}
+
+test('useChannels subscription commands', async () => {
+  const { mockSocket, subscribedCallback, subscribe } = useMockedChannels(true)
+
   const s1 = subscribe('test', 42)
   await s1.promise
   expect(mockSocket.call).toBeCalledWith(
@@ -48,6 +61,7 @@ test('useChannels subscription commands', async () => {
       pk: 42
     }
   )
+  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: true }))
   const s2 = subscribe('test', 42)
   await s2.promise
   expect(mockSocket.call).toBeCalledTimes(1)
@@ -58,7 +72,9 @@ test('useChannels subscription commands', async () => {
   s2.leave(10)
   await sleep() // nextTick
   expect(mockSocket.send).not.toBeCalled()
+  expect(subscribedCallback).toBeCalledTimes(1)
   await sleep(10)
+  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: false }))
   expect(mockSocket.send).toBeCalledWith(
     'channel.leave',
     {
@@ -69,20 +85,12 @@ test('useChannels subscription commands', async () => {
 })
 
 test('useChannels deferred subscriptions', async () => {
-  const mockSocket = {
-    isOpen: false,
-    messageID: 1,
-    // @ts-ignore
-    call: jest.fn(() => Promise.resolve()),
-    send: jest.fn(),
-    on: jest.fn()
-  }
+  const { mockSocket, subscribedCallback, subscribe } = useMockedChannels(false)
 
-  // @ts-ignore
-  const { subscribe } = useChannels(mockSocket)
   const readyHandler: SocketEventHandler = mockSocket.on.mock.calls[0][1]
   await subscribe('test', 42).promise
   expect(mockSocket.call).not.toBeCalled()
+  expect(subscribedCallback).not.toBeCalled()
 
   // Open up the mock socket.
   mockSocket.isOpen = true
@@ -96,4 +104,5 @@ test('useChannels deferred subscriptions', async () => {
       pk: 42
     }
   )
+  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: true }))
 })

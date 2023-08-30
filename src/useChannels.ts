@@ -1,7 +1,12 @@
 import type Socket from "./Socket"
 import { EnvelopeChannel, SubscriptionOptions } from "./types"
 
-type ChannelLeaveHandler = (channelType: string, pk: number) => void
+interface ChannelSubscribedEvent {
+  channelType: string
+  pk: number
+  subscribed: boolean
+}
+type ChannelSubscribedHandler = (event: ChannelSubscribedEvent) => void
 
 const SubscriptionStatus = {
   None: 0,
@@ -50,7 +55,7 @@ export class Subscription extends Set<number> {
 }
 
 export default function useChannels (socket: Socket, opts?: SubscriptionOptions) {
-  const leaveHandlers: ChannelLeaveHandler[] = []
+  const subscribedHandlers: ChannelSubscribedHandler[] = []
   const options = { ...DEFAULT_OPTIONS, ...opts }
   const subscriptions = new Map<string, Subscription>()
   const subscriptionIds = count()
@@ -66,21 +71,28 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
     return subscriptions.get(path)!
   }
 
+  function emitSubscribedEvents (channel: EnvelopeChannel, subscribed: boolean) {
+    for (const handler of subscribedHandlers) {
+      handler({
+        channelType: channel.channel_type,
+        pk: channel.pk,
+        subscribed
+      })
+    }
+  }
+
   async function performLeave (subscription: Subscription) {
     // Do not wait for response
     socket.send('channel.leave', subscription.channel)
     subscription.status = SubscriptionStatus.None
-    for (const handler of leaveHandlers) {
-      handler(
-        subscription.channel.channel_type,
-        subscription.channel.pk,
-      )
-    }
+    emitSubscribedEvents(subscription.channel, false)
   }
+
   async function performSubscribe (subscription: Subscription) {
     subscription.status = SubscriptionStatus.Subscribing
     await socket.call('channel.subscribe', subscription.channel)
     subscription.status = SubscriptionStatus.Subscribed
+    emitSubscribedEvents(subscription.channel, true)
   }
 
   function subscribe (channel_type: string, pk: number) {
@@ -113,8 +125,8 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
     }
   }
 
-  function onLeave (handler: ChannelLeaveHandler) {
-    leaveHandlers.push(handler)
+  function onSubscriptionChanged (handler: ChannelSubscribedHandler) {
+    subscribedHandlers.push(handler)
   }
 
   socket.on('readyState', ({ readyState }) => {
@@ -132,7 +144,7 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
   })
 
   return {
-    onLeave,
+    onSubscriptionChanged,
     subscribe
   }
 }
