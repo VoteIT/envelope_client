@@ -54,6 +54,13 @@ export class Subscription extends Set<number> {
   }
 }
 
+function channelToCamel ({ channel_type, pk }: EnvelopeChannel) {
+  return {
+    channelType: channel_type,
+    pk
+  }
+}
+
 export default function useChannels (socket: Socket, opts?: SubscriptionOptions) {
   const subscribedHandlers: ChannelSubscribedHandler[] = []
   const options = { ...DEFAULT_OPTIONS, ...opts }
@@ -69,6 +76,12 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
       )
     }
     return subscriptions.get(path)!
+  }
+
+  function * getSubscribedChannels () {
+    for (const { channel, status } of subscriptions.values()) {
+      if (status === SubscriptionStatus.Subscribed) yield channelToCamel(channel)
+    }
   }
 
   function emitSubscribedEvents (channel: EnvelopeChannel, subscribed: boolean) {
@@ -144,6 +157,7 @@ export default function useChannels (socket: Socket, opts?: SubscriptionOptions)
   })
 
   return {
+    getSubscribedChannels,
     onSubscriptionChanged,
     subscribe
   }

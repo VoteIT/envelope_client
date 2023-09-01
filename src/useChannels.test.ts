@@ -40,11 +40,12 @@ function useMockedChannels (isOpen: boolean) {
   const subscribedCallback = jest.fn()
 
   // @ts-ignore
-  const { onSubscriptionChanged, subscribe } = useChannels(mockSocket)
+  const { getSubscribedChannels, onSubscriptionChanged, subscribe } = useChannels(mockSocket)
   onSubscriptionChanged(subscribedCallback)
   return {
     mockSocket,
     subscribedCallback,
+    getSubscribedChannels,
     subscribe
   }
 }
@@ -105,4 +106,14 @@ test('useChannels deferred subscriptions', async () => {
     }
   )
   expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: true }))
+})
+
+test('useChannels subscription commands', async () => {
+  const { mockSocket, getSubscribedChannels, subscribe } = useMockedChannels(true)
+
+  await subscribe('test', 1).promise
+  await subscribe('test', 42).promise
+  const subscribed = [...getSubscribedChannels()]
+  expect(subscribed.length).toBe(2)
+  expect(subscribed[1]).toEqual({ channelType: 'test', pk: 42 })
 })
