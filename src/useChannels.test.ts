@@ -109,7 +109,7 @@ test('useChannels deferred subscriptions', async () => {
 })
 
 test('useChannels subscription commands', async () => {
-  const { mockSocket, getSubscribedChannels, subscribe } = useMockedChannels(true)
+  const { getSubscribedChannels, subscribe } = useMockedChannels(true)
 
   await subscribe('test', 1).promise
   await subscribe('test', 42).promise
