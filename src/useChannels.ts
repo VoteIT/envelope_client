@@ -48,7 +48,7 @@ export class Subscription extends Set<number> {
    * This means that a subscribe command should be sent
    */
   public get shouldSubscribe() {
-    return !!this.size && this.status !== SubscriptionStatus.Subscribed
+    return !!this.size && this.status === SubscriptionStatus.None
   }
 }
 

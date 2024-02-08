@@ -28,7 +28,7 @@ test('Subscription objects', () => {
   expect(subscription.shouldLeave).toBe(true)
 })
 
-function useMockedChannels (isOpen: boolean) {
+function useMockedChannels(isOpen: boolean) {
   const mockSocket = {
     isOpen,
     messageID: 1,
@@ -39,8 +39,9 @@ function useMockedChannels (isOpen: boolean) {
   }
   const subscribedCallback = jest.fn()
 
-  // @ts-ignore
-  const { getSubscribedChannels, onSubscriptionChanged, subscribe } = useChannels(mockSocket)
+  const { getSubscribedChannels, onSubscriptionChanged, subscribe } =
+    // @ts-ignore
+    useChannels(mockSocket)
   onSubscriptionChanged(subscribedCallback)
   return {
     mockSocket,
@@ -55,14 +56,13 @@ test('useChannels subscription commands', async () => {
 
   const s1 = subscribe('test', 42)
   await s1.promise
-  expect(mockSocket.call).toBeCalledWith(
-    'channel.subscribe',
-    {
-      channel_type: 'test',
-      pk: 42
-    }
+  expect(mockSocket.call).toBeCalledWith('channel.subscribe', {
+    channel_type: 'test',
+    pk: 42
+  })
+  expect(subscribedCallback).toBeCalledWith(
+    expect.objectContaining({ subscribed: true })
   )
-  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: true }))
   const s2 = subscribe('test', 42)
   await s2.promise
   expect(mockSocket.call).toBeCalledTimes(1)
@@ -75,14 +75,13 @@ test('useChannels subscription commands', async () => {
   expect(mockSocket.send).not.toBeCalled()
   expect(subscribedCallback).toBeCalledTimes(1)
   await sleep(10)
-  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: false }))
-  expect(mockSocket.send).toBeCalledWith(
-    'channel.leave',
-    {
-      channel_type: 'test',
-      pk: 42
-    }
+  expect(subscribedCallback).toBeCalledWith(
+    expect.objectContaining({ subscribed: false })
   )
+  expect(mockSocket.send).toBeCalledWith('channel.leave', {
+    channel_type: 'test',
+    pk: 42
+  })
 })
 
 test('useChannels deferred subscriptions', async () => {
@@ -98,14 +97,13 @@ test('useChannels deferred subscriptions', async () => {
   readyHandler({ readyState: WebSocket.OPEN })
   await sleep()
 
-  expect(mockSocket.call).toBeCalledWith(
-    'channel.subscribe',
-    {
-      channel_type: 'test',
-      pk: 42
-    }
+  expect(mockSocket.call).toBeCalledWith('channel.subscribe', {
+    channel_type: 'test',
+    pk: 42
+  })
+  expect(subscribedCallback).toBeCalledWith(
+    expect.objectContaining({ subscribed: true })
   )
-  expect(subscribedCallback).toBeCalledWith(expect.objectContaining({ subscribed: true }))
 })
 
 test('useChannels subscription commands', async () => {
@@ -116,4 +114,36 @@ test('useChannels subscription commands', async () => {
   const subscribed = [...getSubscribedChannels()]
   expect(subscribed.length).toBe(2)
   expect(subscribed[1]).toEqual({ channelType: 'test', pk: 42 })
+})
+
+test('useChannels single subscribe command', async () => {
+  const { getSubscribedChannels, mockSocket, subscribe } =
+    useMockedChannels(true)
+  await Promise.all([
+    subscribe('test', 1).promise,
+    subscribe('test', 1).promise
+  ])
+  const subscribed = [...getSubscribedChannels()]
+  expect(subscribed.length).toBe(1)
+  expect(mockSocket.call).toBeCalledTimes(1)
+})
+
+test('useChannels single leave command', async () => {
+  const channelLeftCall = {
+    channelType: 'test',
+    pk: 1,
+    subscribed: false
+  }
+  const { getSubscribedChannels, subscribe, subscribedCallback } =
+    useMockedChannels(true)
+  const subscriptions = [subscribe('test', 1), subscribe('test', 1)]
+  await Promise.all(subscriptions.map((s) => s.promise))
+  subscriptions[0].leave(0)
+  await sleep()
+  expect([...getSubscribedChannels()].length).toBe(1)
+  expect(subscribedCallback).not.toBeCalledWith(channelLeftCall)
+  subscriptions[1].leave(0)
+  await sleep()
+  expect([...getSubscribedChannels()].length).toBe(0)
+  expect(subscribedCallback).toBeCalledWith(channelLeftCall)
 })
