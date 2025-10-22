@@ -1,5 +1,5 @@
 import { expect, jest, test } from '@jest/globals'
-import WS from "jest-websocket-mock"
+import WS from 'jest-websocket-mock'
 
 import Socket from './Socket'
 import { SocketOptions } from './types'
@@ -10,16 +10,16 @@ import { SocketOptions } from './types'
  * Awaitable sleep function
  * @param ms Milliseconds to sleep - leave empty for nextTick
  */
-export function sleep (ms: number = 0) {
-  return new Promise(resolve => {
+export function sleep(ms: number = 0) {
+  return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
 }
 
-async function createSocket (opts?: SocketOptions) {
+async function createSocket(opts?: SocketOptions) {
   // create a WS instance, listening on port 1234 on localhost
-  const server = new WS("ws://localhost:1234", { jsonProtocol: true })
-  const socket = new Socket("ws://localhost:1234", opts)
+  const server = new WS('ws://localhost:1234', { jsonProtocol: true })
+  const socket = new Socket('ws://localhost:1234', opts)
   if (!opts?.manual) await server.connected // wait for the server to have established the connection
   return {
     server,
@@ -29,14 +29,12 @@ async function createSocket (opts?: SocketOptions) {
 
 test('WebSocket type message', async () => {
   const { server, socket } = await createSocket()
-  
+
   const handler = jest.fn()
   socket.addTypeHandler('test', handler)
 
   server.send({ t: 'test.message' })
-  expect(handler).toBeCalledWith(
-    { t: 'test.message' }
-  )
+  expect(handler).toBeCalledWith({ t: 'test.message' })
 
   server.send({
     t: 's.batch',
@@ -67,7 +65,7 @@ test('WebSocket readyState lifecycle', async () => {
 
   socket.connect()
   expect(eventHandler).toBeCalledWith({ readyState: WebSocket.CONNECTING })
-  
+
   await server.connected
   expect(eventHandler).toBeCalledWith({ readyState: WebSocket.OPEN })
 
@@ -80,17 +78,17 @@ test('WebSocket readyState lifecycle', async () => {
 
 test('WebSocket connection refused', async () => {
   const { server, socket } = await createSocket({ manual: true })
-  server.on('connection', socket => {
+  server.on('connection', (socket) => {
     socket.close({ wasClean: false, code: 1003, reason: 'NOPE' })
   })
 
   socket.connect()
   expect(socket.readyState).toBe(WebSocket.CONNECTING)
 
-  await server.connected;
+  await server.connected
   expect(socket.readyState).toBe(WebSocket.CLOSING)
 
-  await server.closed;
+  await server.closed
   expect(socket.readyState).toBe(WebSocket.CLOSED)
 
   WS.clean()
@@ -112,7 +110,7 @@ test('WebSocket heartbeat', async () => {
   const cb = {
     any: jest.fn(),
     in: jest.fn(),
-    out: jest.fn(),
+    out: jest.fn()
   }
   const { server, socket } = await createSocket()
   socket.addHeartbeat(cb.any, 50)
@@ -151,10 +149,10 @@ test('WebSocket heartbeat', async () => {
 })
 
 test('Socket call timeout', async () => {
-  const { socket } = await createSocket({ config: { timeout: 5 }})
-  await expect(
-    socket.call('test.timeout')
-  ).rejects.toEqual(new Error('Request timed out'))
+  const { socket } = await createSocket({ config: { timeout: 5 } })
+  await expect(socket.call('test.timeout')).rejects.toEqual(
+    new Error('Request timed out')
+  )
 
   WS.clean()
 })
@@ -212,5 +210,24 @@ test('channels connection', async () => {
     }
   })
 
+  WS.clean()
+})
+
+test('before app_state event', async () => {
+  const handler = jest.fn()
+  const { server } = await createSocket({ beforeAppStateHandler: handler })
+
+  server.send({
+    t: 'channel.subscribed',
+    i: '1',
+    p: {
+      channel_type: 'test',
+      channel_name: 'test_1',
+      pk: 1,
+      app_state: [{ t: 'content', p: {} }]
+    },
+    s: 's'
+  })
+  expect(handler).toBeCalledWith({ channelType: 'test', pk: 1 })
   WS.clean()
 })

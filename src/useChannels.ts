@@ -70,27 +70,24 @@ export default function useChannels(
 
   function getSubscription(channel: EnvelopeChannel) {
     const path = `${channel.channel_type}/${channel.pk}`
-    if (!subscriptions.has(path)) {
+    if (!subscriptions.has(path))
       subscriptions.set(path, new Subscription(channel))
-    }
     return subscriptions.get(path)!
   }
 
   function* getSubscribedChannels() {
-    for (const { channel, status } of subscriptions.values()) {
+    for (const { channel, status } of subscriptions.values())
       if (status === SubscriptionStatus.Subscribed)
         yield channelToSnakeCase(channel)
-    }
   }
 
   function emitSubscribedEvents(channel: EnvelopeChannel, subscribed: boolean) {
-    for (const handler of subscribedHandlers) {
+    for (const handler of subscribedHandlers)
       handler({
         channelType: channel.channel_type,
         pk: channel.pk,
         subscribed
       })
-    }
   }
 
   async function performLeave(subscription: Subscription) {
@@ -143,14 +140,12 @@ export default function useChannels(
   socket.on('readyState', ({ readyState }) => {
     if (readyState === WebSocket.OPEN) {
       // When connected, subscribe to all channels that should be
-      for (const { channel, shouldSubscribe } of subscriptions.values()) {
+      for (const { channel, shouldSubscribe } of subscriptions.values())
         if (shouldSubscribe) subscribe(channel.channel_type, channel.pk)
-      }
     } else {
       // Any other state switch means we're no longer subscribed to any channel
-      for (const subscription of subscriptions.values()) {
+      for (const subscription of subscriptions.values())
         subscription.status = SubscriptionStatus.None
-      }
     }
   })
 

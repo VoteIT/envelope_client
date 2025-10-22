@@ -4,7 +4,7 @@ export enum State {
   Success = 's',
   Failed = 'f',
   Queued = 'q',
-  Running = 'r',
+  Running = 'r'
 }
 
 export interface Progress {
@@ -19,7 +19,7 @@ export interface BaseChannelsMessage {
 }
 
 export interface SuccessMessage<T> extends BaseChannelsMessage {
-  s?: State.Success
+  s?: State.Success // TODO: This should not be optional, but change requires more typing work
   p: T
 }
 
@@ -48,7 +48,9 @@ export interface FailedMessage extends BaseChannelsMessage {
   p: ValidationErrorPayload | ErrorPayload
 }
 
-export function isValidationErrorPayload (p: FailedMessage['p']): p is ValidationErrorPayload {
+export function isValidationErrorPayload(
+  p: FailedMessage['p']
+): p is ValidationErrorPayload {
   return 'errors' in p
 }
 
@@ -72,11 +74,16 @@ export interface BatchMessage extends BaseChannelsMessage {
   p: BatchPayload
 }
 
-export type ChannelsMessage<T=unknown> = SuccessMessage<T> | ProgressMessage | FailedMessage
+export type ChannelsMessage<T = unknown> =
+  | SuccessMessage<T>
+  | ProgressMessage
+  | FailedMessage
 
-export type TypeHandler<T=unknown> = (data: ChannelsMessage<T>) => void
+export type TypeHandler<T = unknown> = (data: ChannelsMessage<T>) => void
 
-export type ProgressHandler<PT extends Progress=Progress> = (progress: PT) => void
+export type ProgressHandler<PT extends Progress = Progress> = (
+  progress: PT
+) => void
 
 export type SocketEvent = 'readyState'
 type ReadyStateChangedEvent = { readyState: WebSocket['readyState'] }
@@ -88,13 +95,18 @@ export interface ChannelsConfig {
 }
 
 export interface Heartbeat {
-  callback (socket: Socket): void
+  callback(socket: Socket): void
   direction?: 'incoming' | 'outgoing'
   ms: number
   intervalID?: NodeJS.Timeout
 }
 
 export interface SocketOptions {
+  /**
+   * Register a handler to be celled before app_state is processed.
+   * Can be used to clear content from channel.
+   */
+  beforeAppStateHandler?(channel: { channelType: string; pk: number }): void
   config?: ChannelsConfig
   debug?: boolean
   manual?: boolean

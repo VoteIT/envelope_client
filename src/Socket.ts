@@ -1,18 +1,35 @@
-import ProgressPromise from "./ProgressPromise"
-import { ValidationError } from "./errors"
-import { BatchMessage, BatchPayload, ChannelsConfig, ChannelsMessage, Heartbeat, Progress, SocketEvent, SocketEventHandler, SocketOptions, State, SubscribedPayload, SuccessMessage, TypeHandler, isValidationErrorPayload } from "./types"
-import useChannels from "./useChannels"
+import ProgressPromise from './ProgressPromise'
+import { ValidationError } from './errors'
+import {
+  BatchMessage,
+  BatchPayload,
+  ChannelsConfig,
+  ChannelsMessage,
+  Heartbeat,
+  Progress,
+  SocketEvent,
+  SocketEventHandler,
+  SocketOptions,
+  State,
+  SubscribedPayload,
+  SuccessMessage,
+  TypeHandler,
+  isValidationErrorPayload
+} from './types'
+import useChannels from './useChannels'
 
 const DEFAULT_CONFIG: ChannelsConfig = {
   timeout: 20_000 // 20 s, longer than server's 15 s
 }
 
-function isBatchMessage (msg: ChannelsMessage): msg is BatchMessage {
+function isBatchMessage(msg: ChannelsMessage): msg is BatchMessage {
   return msg.t === 's.batch'
 }
 
-function isSubscribedMessage (msg: ChannelsMessage): msg is SuccessMessage<SubscribedPayload> {
-  return msg.t === 'channel.subscribed'
+function isSubscribedMessage(
+  msg: ChannelsMessage
+): msg is SuccessMessage<SubscribedPayload> {
+  return msg.s === State.Success && msg.t === 'channel.subscribed'
 }
 
 export default class Socket {
@@ -29,8 +46,8 @@ export default class Socket {
   private url: string | URL
   private ws?: WebSocket
   public channels: ReturnType<typeof useChannels>
-  
-  constructor (url: string | URL, opts?: SocketOptions) {
+
+  constructor(url: string | URL, opts?: SocketOptions) {
     this.callbacks = new Map()
     this.callConfig = { ...DEFAULT_CONFIG, ...opts?.config }
     this.eventHandlers = {
@@ -49,33 +66,33 @@ export default class Socket {
     })
   }
 
-  public get readyState () {
+  public get readyState() {
     return this.ws?.readyState
   }
 
   // Batch messages allows sending a group of messages that are handled in the same tick,
   // to avoid triggering Vue component updates on each added object
-  private handleBatchMessage ({ t, payloads }: BatchPayload, i: string | null) {
+  private handleBatchMessage({ t, payloads }: BatchPayload, i: string | null) {
     const [contentType] = t.split('.')
     // const listener = this.typeListeners.get(contentType)
     const handlers = this.typeHandlers[contentType]
     if (!handlers) {
-      if (this.options.debug) console.warn(`No handlers registered for batch message ${t}`)
+      if (this.options.debug)
+        console.warn(`No handlers registered for batch message ${t}`)
       return
     }
-    for (const handler of handlers) {
-      for (const p of payloads) {
-        handler({ t, i, p })
-      }
-    }
+    for (const handler of handlers)
+      for (const p of payloads) handler({ t, i, p })
   }
 
-  public on (eventName: SocketEvent, handler: SocketEventHandler) {
+  public on(eventName: SocketEvent, handler: SocketEventHandler) {
     this.eventHandlers[eventName].push(handler)
   }
 
-  public off (eventName: SocketEvent, handler: SocketEventHandler) {
-    this.eventHandlers[eventName] = this.eventHandlers[eventName].filter(_handler => _handler !== handler)
+  public off(eventName: SocketEvent, handler: SocketEventHandler) {
+    this.eventHandlers[eventName] = this.eventHandlers[eventName].filter(
+      (_handler) => _handler !== handler
+    )
   }
 
   /**
@@ -88,30 +105,28 @@ export default class Socket {
   //   this.typeListeners.set(name, listener)
   // }
 
-  public addTypeHandler (name: string, handler: TypeHandler) {
+  public addTypeHandler(name: string, handler: TypeHandler) {
     let handlers = this.typeHandlers[name] || []
     // Check if already registered?
-    if (handlers.find(h => h === handler)) return
+    if (handlers.find((h) => h === handler)) return
     this.typeHandlers[name] = [...handlers, handler]
   }
 
-  public removeTypeHandler (name: string, handler: TypeHandler) {
+  public removeTypeHandler(name: string, handler: TypeHandler) {
     const handlers = this.typeHandlers[name]
     if (!handlers) return
-    this.typeHandlers[name] = handlers.filter(h => h !== handler)
+    this.typeHandlers[name] = handlers.filter((h) => h !== handler)
   }
 
-  private updateReadyState () {
-    if (this.readyState === undefined || this._readyState === this.readyState) return
+  private updateReadyState() {
+    if (this.readyState === undefined || this._readyState === this.readyState)
+      return
     this._readyState = this.readyState
-    for (const handler of this.eventHandlers.readyState) {
-      handler({
-        readyState: this.readyState
-      })
-    }
+    for (const handler of this.eventHandlers.readyState)
+      handler({ readyState: this.readyState })
   }
 
-  public connect () {
+  public connect() {
     this.ws = new WebSocket(this.url)
     this.updateReadyState()
 
@@ -132,26 +147,37 @@ export default class Socket {
       // If there's a listener for message identifier
       if (msg.i) this.callbacks.get(msg.i)?.(msg)
       // If it's a subscribed response, handle any app_state
-      if (isSubscribedMessage(msg)) msg.p.app_state?.forEach(this.handleTypeMessage.bind(this))
+      if (isSubscribedMessage(msg)) {
+        // Send before app state event
+        this.options.beforeAppStateHandler?.({
+          channelType: msg.p.channel_type,
+          pk: msg.p.pk
+        })
+        for (const payload of msg.p.app_state ?? [])
+          this.handleTypeMessage(payload)
+      }
       // Else handle type message
       else this.handleTypeMessage(msg)
     }
   }
 
-  private handleTypeMessage (msg: ChannelsMessage) {
+  private handleTypeMessage(msg: ChannelsMessage) {
     if (!msg.t) return
     const type = msg.t.split('.')[0]
     const handlers = this.typeHandlers[type] || []
-    if (this.options.debug && !handlers.length) console.warn(`No handler for message of type '${type}'`)
+    if (this.options.debug && !handlers.length)
+      console.warn(`No handler for message of type '${type}'`)
     for (const handler of handlers) {
       handler(msg)
     }
   }
 
-  public close () {
+  public close() {
     // Unregister listeners here?
     if (!this.ws) return
-    this.ws.onopen = () => { throw new Error('Undead socket detected') }
+    this.ws.onopen = () => {
+      throw new Error('Undead socket detected')
+    }
     this.ws.onmessage = null
     this.ws.onerror = null
     this.ws.onclose = null
@@ -159,12 +185,13 @@ export default class Socket {
     this.updateReadyState()
   }
 
-  public get isOpen () {
+  public get isOpen() {
     return this.readyState === WebSocket.OPEN
   }
 
-  private async assertOpen () {
-    if (!this.isOpen) throw new Error(`Socket not open (readyState ${this.readyState})`)
+  private async assertOpen() {
+    if (!this.isOpen)
+      throw new Error(`Socket not open (readyState ${this.readyState})`)
   }
 
   /**
@@ -174,18 +201,24 @@ export default class Socket {
    * @param p payload
    * @returns ProgressPromise
    */
-  public call<T, PT extends Progress = Progress> (t: string, p?: object, config?: ChannelsConfig): ProgressPromise<SuccessMessage<T>, PT> {
+  public call<T, PT extends Progress = Progress>(
+    t: string,
+    p?: object,
+    config?: ChannelsConfig
+  ): ProgressPromise<SuccessMessage<T>, PT> {
     // Registers a response listener and returns promise that resolves or rejects depeding on subsequent
     // socket data, or times out.
     this.assertOpen()
     this.heartbeat('outgoing')
     const myConfig: ChannelsConfig = { ...this.callConfig, ...config }
     const i = String(++this.messageID)
-    this.ws?.send(JSON.stringify({
-      t,
-      i,
-      p
-    }))
+    this.ws?.send(
+      JSON.stringify({
+        t,
+        i,
+        p
+      })
+    )
     return new ProgressPromise((resolve, reject, progress) => {
       let timeoutId: NodeJS.Timeout
       const setRejectTimeout = () => {
@@ -197,7 +230,7 @@ export default class Socket {
       }
       setRejectTimeout()
 
-      this.callbacks.set(i, data => {
+      this.callbacks.set(i, (data) => {
         clearTimeout(timeoutId)
         switch (data.s) {
           case State.Failed:
@@ -231,7 +264,7 @@ export default class Socket {
    * @param t type
    * @param p payload
    */
-  public send (t: string, p?: object) {
+  public send(t: string, p?: object) {
     // Does not register a response listener
     this.assertOpen()
     this.heartbeat('outgoing')
@@ -245,18 +278,28 @@ export default class Socket {
    * @param s state
    * @param p payload
    */
-  public respond (t: string, i: string | null, s: State = State.Success, p?: object) {
+  public respond(
+    t: string,
+    i: string | null,
+    s: State = State.Success,
+    p?: object
+  ) {
     this.assertOpen()
     this.heartbeat('outgoing')
     this.ws?.send(JSON.stringify({ t, i, p, s }))
   }
 
   /* Heartbeat handling */
-  public addHeartbeat (callback: Heartbeat['callback'], ms: number, direction?: Heartbeat['direction']) {
+  public addHeartbeat(
+    callback: Heartbeat['callback'],
+    ms: number,
+    direction?: Heartbeat['direction']
+  ) {
     // Should not trigger before readyState is open
-    const intervalID = this.readyState === WebSocket.OPEN
-      ? setInterval(() => callback(this), ms)
-      : undefined
+    const intervalID =
+      this.readyState === WebSocket.OPEN
+        ? setInterval(() => callback(this), ms)
+        : undefined
     this.heartbeats.push({
       callback,
       direction,
@@ -265,16 +308,16 @@ export default class Socket {
     })
   }
 
-  public removeHeartbeat (callback: Heartbeat['callback']) {
+  public removeHeartbeat(callback: Heartbeat['callback']) {
     const finder = (beat: Heartbeat) => beat.callback === callback
     const heartbeat = this.heartbeats.find(finder)
     if (!heartbeat) return
     // Clear timeout and drop from heartbeats
     clearInterval(heartbeat.intervalID)
-    this.heartbeats = this.heartbeats.filter(beat => !finder(beat))
+    this.heartbeats = this.heartbeats.filter((beat) => !finder(beat))
   }
 
-  private heartbeat (direction: NonNullable<Heartbeat['direction']> | 'off') {
+  private heartbeat(direction: NonNullable<Heartbeat['direction']> | 'off') {
     if (direction === 'off') {
       for (const beat of this.heartbeats) {
         clearInterval(beat.intervalID)
