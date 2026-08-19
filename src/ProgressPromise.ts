@@ -1,62 +1,82 @@
 import { Progress, ProgressHandler } from './types'
 
-const PROGRESS_INITIAL: Progress = {
-  curr: 0,
-  total: 1
-} as const
+const DEFAULT_TOTAL = 1
 
-export default class ProgressPromise<T, PT extends Progress=Progress> extends Promise<T> {
-  _progress: Progress
-  _listeners: Set<ProgressHandler<PT>>
-  _setProgress: ProgressHandler<PT>
+/**
+ * A Promise that can also report progress while it's pending.
+ * The executor gets a third argument, `progress`, for reporting updates.
+ * @typeParam T Resolved value type
+ * @typeParam PT Progress type, if extended with extra data
+ */
+export default class ProgressPromise<
+  T,
+  PT extends Progress = Progress
+> extends Promise<T> {
+  private currentProgress: Progress
+  private listeners: Set<ProgressHandler<PT>>
 
-  constructor (
+  /**
+   * @param executor Like a Promise executor, but with an added `progress`
+   * callback for reporting progress to listeners
+   * @param total Expected total of the initial progress, before anything is
+   * reported. Defaults to 1.
+   */
+  constructor(
     executor: (
       resolve: (value: T | PromiseLike<T>) => void,
       reject: (reason?: any) => void,
       progress: (progress: PT) => void
-    ) => void) {
+    ) => void,
+    total: number = DEFAULT_TOTAL
+  ) {
     const setProgress = (progress: PT) => {
-      (async () => {
-        // We wait for the next microtask tick so `super` is called before we use `this`
-        await Promise.resolve()
-
+      // We wait for the next microtask tick so `super` is called before we use
+      // `this`. Note: this must stay a `then` callback rather than an `async`
+      // IIFE, since downlevelled `async` reads `this` synchronously.
+      Promise.resolve().then(() => {
         // Note: we don't really have guarantees over
         // the order in which async operations are evaluated,
         // so if we get an out-of-order progress, we won't save it.
-        if (progress.curr >= this._progress.curr) this._progress = progress
-        for (const listener of this._listeners) {
+        if (progress.curr >= this.currentProgress.curr)
+          this.currentProgress = progress
+        for (const listener of this.listeners) {
           listener(progress)
         }
-      })()
+      })
     }
 
-    super((
-      resolve: (value: T | PromiseLike<T>) => void,
-      reject: (reason?: any) => void
-    ) => {
-      executor(
-        resolve,
-        reject,
-        setProgress
-      )
-    })
+    super(
+      (
+        resolve: (value: T | PromiseLike<T>) => void,
+        reject: (reason?: any) => void
+      ) => {
+        executor(resolve, reject, setProgress)
+      }
+    )
 
-    this._listeners = new Set()
-    this._setProgress = setProgress
-    this._progress = PROGRESS_INITIAL
+    this.listeners = new Set()
+    this.currentProgress = { curr: 0, total }
   }
 
-  get progress () {
-    return this._progress
+  /**
+   * Latest reported progress. Out-of-order updates are ignored here.
+   */
+  get progress() {
+    return this.currentProgress
   }
 
-  public onProgress (callback: ProgressHandler<PT>) {
+  /**
+   * Registers a progress listener. Chainable.
+   * Listeners are never removed, and each one is only registered once.
+   * @param callback Called with every reported progress, in the order reported
+   * @returns This promise
+   */
+  public onProgress(callback: ProgressHandler<PT>) {
     if (typeof callback !== 'function') {
       throw new TypeError(`Expected a \`Function\`, got \`${typeof callback}\``)
     }
 
-    this._listeners.add(callback)
+    this.listeners.add(callback)
     return this
   }
 }
