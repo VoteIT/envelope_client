@@ -1,4 +1,4 @@
-import { test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 
 import useChannels, { Subscription, count } from './useChannels'
 import { sleep } from './Socket.test'
@@ -87,7 +87,7 @@ test('useChannels subscription commands', async () => {
 test('useChannels deferred subscriptions', async () => {
   const { mockSocket, subscribedCallback, subscribe } = useMockedChannels(false)
 
-  const readyHandler: SocketEventHandler = mockSocket.on.mock.calls[0][1]
+  const readyHandler = mockSocket.on.mock.calls[0][1] as SocketEventHandler
   await subscribe('test', 42).promise
   expect(mockSocket.call).not.toBeCalled()
   expect(subscribedCallback).not.toBeCalled()
